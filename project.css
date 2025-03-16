@@ -1,0 +1,157 @@
+body{
+    background-color:#222831;
+    color:white;
+}
+nav{
+    margin-left:20px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:20px 80px;
+}
+nav a{
+    margin:20px;
+    text-decoration:none;
+    color:white;
+}
+hr{
+    color:white;
+}
+.content{
+    display:flex;
+    justify-content:space-around;
+    align-items:center;
+    height:100vh;
+}
+.small-text{
+    font-size:48px;
+    margin-bottom:30px;
+    width:300px;
+    font-weight:700;
+    font-family: 'Roboto', 'sans-serif';
+}
+.content button{
+    padding: 10px 20px;
+    margin-right:20px;
+    border:none;
+    border-radius:30px;
+    height:50px;
+    width:150px;
+    cursor:pointer;
+}
+.blue-btn{
+    background-color:#00ADB5;
+}
+.grey-btn{
+    background-color:grey;
+}
+.big-text{
+    font-size:64px;
+    font-weight:800;
+    font-family:'Roboto', sans-serif;
+    width:550px;
+}
+.blue-text{
+    color:#00ADB5;
+}
+.grey-text{
+    width:350px;
+    font-weight:400;
+    color:rgba(255, 255, 255, 0.639);
+}
+#white-text{
+    color:white;
+    cursor:pointer;
+}
+.text{
+    width:600px;
+}
+#step{
+    margin-left:100px;
+}
+.content:nth-last-child(1 of .content){
+    align-items:start;
+}
+.content:nth-last-child(1 of .content) img{
+    width:200px;
+}
+#inner-content{
+    display:flex;
+    justify-content:right;
+    flex-direction:column;
+}
+.pre-footer{
+    height:100vh;
+    margin-left:120px;
+}
+.pre-footer img{
+    margin-right:40px;
+}
+.buttons{
+    margin:30px 0px;
+}
+.buttons button{
+    padding: 10px 30px;
+    margin-right:20px;
+    font-size:24px;
+    color:white;
+    border:none;
+    border-radius:30px;
+    cursor:pointer;
+    background-color:#393E4680;
+}
+.buttons button:first-child{
+    background-color:#00ADB5
+}
+.buttons button:hover{
+    opacity:0.5;
+    transition:0.5s;
+}
+footer{
+    display:flex;
+    justify-content:center;
+    flex-direction:row;
+    width:100%;
+}
+.links{
+    display:flex;
+    justify-content:space-between;
+    flex-direction:row;
+    width:100%;
+}
+.link{
+    font-family:'Roboto', sans-serif;
+    color:white;
+    padding:40px;
+    font-size:20px;
+    font-weight:100;
+    cursor:pointer;
+}
+footer img{
+    width:48px;
+    height:48px;
+}
+.links-logo{
+    display:flex;
+    justify-content:center;
+}
+.logo{
+    padding:10px;
+    cursor:pointer;
+}
+.logo:hover{
+    transition:1s;
+    scale:1.05;
+    opacity:0.5;
+}
+.terms{
+    display:flex;
+    justify-content:center;
+    margin-top:100px;
+}
+.term{
+    font-family:'Roboto', sans-serif;
+    color:rgba(255, 255, 255, 0.639);
+    font-size:20px;
+    font-weight:100;
+}
