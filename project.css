@@ -14,6 +14,10 @@ nav a{
     text-decoration:none;
     color:white;
 }
+.header-links:hover{
+    transition:0.5s;
+    color:grey;
+}
 hr{
     color:white;
 }
@@ -42,8 +46,16 @@ hr{
 .blue-btn{
     background-color:#00ADB5;
 }
+.blue-btn:hover{
+    transition:0.5s;
+    scale:1.1;
+}
 .grey-btn{
     background-color:grey;
+}
+.grey-btn:hover{
+    transition:0.5s;
+    scale:1.1;
 }
 .big-text{
     font-size:64px;
@@ -100,6 +112,10 @@ hr{
     cursor:pointer;
     background-color:#393E4680;
 }
+.buttons button:hover{
+    transition:0.5s;
+    scale:1.05;
+}
 .buttons button:first-child{
     background-color:#00ADB5
 }
@@ -126,6 +142,10 @@ footer{
     font-size:20px;
     font-weight:100;
     cursor:pointer;
+}
+.link:hover{
+    transition:0.5s;
+    color:grey;
 }
 footer img{
     width:48px;
