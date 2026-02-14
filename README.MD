@@ -1,1 +1,1 @@
-A game in pitch darnkess, untill you make a sound.
+A game in pitch darkness, untill you make a sound.
