@@ -957,5 +957,4 @@ scene("game", () => {
 
 });
 
-// Start the game
-go("game");
+// Game starts when the Play button is clicked (see index.html startGame())

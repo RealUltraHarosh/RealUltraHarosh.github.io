@@ -3,16 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Top-Down Shooter</title>
+    <title>Sonar</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 </head>
 <body>
-    
-    <!-- We will let Kaplay inject the canvas here -->
+
+    <!-- Main Menu Overlay -->
+    <div id="main-menu">
+        <div class="grid-bg"></div>
+        <div class="menu-content">
+            <h1 class="title">SONAR</h1>
+            <p class="subtitle">Listen. Move. Survive.</p>
+            <button id="play-btn" onclick="startGame()">PLAY DEMO</button>
+            <div class="controls-hint">
+                <span>WASD</span> Move &nbsp;&bull;&nbsp;
+                <span>Shift</span> Sprint &nbsp;&bull;&nbsp;
+                <span>Z</span> Sneak &nbsp;&bull;&nbsp;
+                <span>LMB</span> Attack &nbsp;&bull;&nbsp;
+                <span>RMB</span> Parry
+            </div>
+        </div>
+        <!-- Animated pulse rings -->
+        <div class="pulse-ring pulse-1"></div>
+        <div class="pulse-ring pulse-2"></div>
+        <div class="pulse-ring pulse-3"></div>
+    </div>
+
+    <!-- Kaplay canvas renders here -->
     <div id="game-container"></div>
 
-    <!-- Load Kaplay from unpkg -->
     <script src="https://unpkg.com/kaplay@3001.0.0-alpha.21/dist/kaplay.js"></script>
     <script src="game.js"></script>
+    <script>
+        function startGame() {
+            const menu = document.getElementById("main-menu");
+            menu.classList.add("fade-out");
+            setTimeout(() => {
+                menu.style.display = "none";
+                go("game");
+            }, 600);
+        }
+    </script>
 </body>
 </html>
