@@ -951,7 +951,7 @@ scene("game", () => {
             if (isSneaking) {
                 // --- SILENT STING ---
                 // Short range, zero sound, backstab check
-                const range = 50;
+                const range = 70;
                 const sentinels = get("sentinel");
                 for (const s of sentinels) {
                     const d = s.pos.dist(player.pos);
@@ -980,7 +980,7 @@ scene("game", () => {
                 spawnVisionCone(player.pos.clone(), aimAngleRad, 120, 60, 0.4);
 
                 // Check for sentinel hits within cone
-                const range = 80;
+                const range = 110;
                 const halfArcRad = 30 * Math.PI / 180;
                 const sentinels = get("sentinel");
                 for (const s of sentinels) {
