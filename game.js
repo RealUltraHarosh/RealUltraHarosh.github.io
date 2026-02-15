@@ -50,6 +50,11 @@ loadSound("sfx_attack", "sounds/attack.mp3");
 loadSound("sfx_parry", "sounds/parry.mp3");
 loadSound("sfx_kill", "sounds/kill.mp3");
 loadSound("sfx_parry_initial", "sounds/parry_initial.mp3");
+// QOL Sounds
+loadSound("sfx_step", "sounds/walk.mp3");
+loadSound("sfx_sprint", "sounds/sprint.mp3");
+loadSound("sfx_dash", "sounds/dash.mp3");
+loadSound("sfx_windup", "sounds/windup.mp3");
 
 // --- CUSTOM COMPONENTS ---
 
@@ -620,8 +625,9 @@ scene("game", () => {
                                 this.state = "lunge_windup";
                                 this.windupTimer = 0.4;
                                 this.lungeDir = player.pos.sub(this.pos).unit();
-                                // Warning cue: red ripple
+                                // Warning cue: red ripple + sound
                                 spawnPulse(this.pos, 60, 0.3, false, this, NEON_RED);
+                                play("sfx_windup");
                                 return;
                             }
 
@@ -864,6 +870,7 @@ scene("game", () => {
             spawnPulse(player.pos, 550, 0.6);
             shake(3);
             currentSpeed = DASH_SPEED;
+            play("sfx_dash");
         }
         else {
             // Check Sprint condition: Must hold Shift, be moving, have stamina, AND not be exhausted
@@ -900,6 +907,14 @@ scene("game", () => {
                 player.stepTimer += dt();
                 if (player.stepTimer >= pulseInterval) {
                     spawnPulse(player.pos, pulseSize, 0.8);
+
+                    // Footstep sound syncs with pulse (step)
+                    if (isSprinting) {
+                        play("sfx_sprint", { volume: 0.8 });
+                    } else {
+                        play("sfx_step", { volume: 0.5 });
+                    }
+
                     player.stepTimer = 0;
                 }
             }
