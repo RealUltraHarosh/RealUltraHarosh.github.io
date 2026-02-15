@@ -16,6 +16,20 @@ const DASH_TIME = 0.15;
 const NEON_WHITE = rgb(240, 255, 255);
 const NEON_BLUE = rgb(0, 255, 255);
 const NEON_RED = rgb(255, 50, 50);
+const NEON_YELLOW = rgb(255, 255, 100);
+
+// Combat Constants
+const ATTACK_COST = 10;
+const PARRY_COST = 20;
+const PARRY_WINDOW = 0.2;
+const STUN_DURATION = 2.0;
+const IMPACT_FREEZE = 0.05;
+
+// Sound Placeholders — uncomment and set your file paths
+loadSound("sfx_attack", "sounds/attack.mp3");
+loadSound("sfx_parry", "sounds/parry.mp3");
+loadSound("sfx_kill", "sounds/kill.mp3");
+loadSound("sfx_parry_initial", "sounds/parry_initial.mp3");
 
 // --- CUSTOM COMPONENTS ---
 
@@ -78,7 +92,7 @@ function wobblyMovement() {
         update() {
             const isMoving = isKeyDown("w") || isKeyDown("a") || isKeyDown("s") || isKeyDown("d");
             // Reduce wobble intensity when sneaking
-            const intensity = isKeyDown("control") ? 0.05 : 0.15;
+            const intensity = isKeyDown("z") ? 0.05 : 0.15;
 
             if (isMoving) {
                 t += dt() * 20;
@@ -90,6 +104,108 @@ function wobblyMovement() {
             }
         }
     };
+}
+
+function combatVisuals() {
+    return {
+        id: "combatVisuals",
+        require: ["pos", "rotate", "opacity"],
+        draw() {
+            const op = this.opacity ?? 1;
+            if (this.combatState === "parry") {
+                // Shield arc in front of player
+                drawLine({
+                    p1: vec2(-28, -14),
+                    p2: vec2(-28, 14),
+                    width: 5,
+                    color: NEON_YELLOW,
+                    opacity: 0.9 * op
+                });
+                drawCircle({
+                    pos: vec2(-28, 0),
+                    radius: 16,
+                    fill: false,
+                    outline: { color: NEON_YELLOW, width: 2 },
+                    opacity: 0.4 * op
+                });
+            }
+            else if (this.combatState === "attack") {
+                // Dagger thrust line
+                drawLine({
+                    p1: vec2(-17, 0),
+                    p2: vec2(-50, 0),
+                    width: 3,
+                    color: NEON_BLUE,
+                    opacity: 0.8 * op
+                });
+            }
+        }
+    };
+}
+
+// --- HELPER FUNCTIONS ---
+
+function impactFreeze(duration) {
+    debug.timeScale = 0;
+    setTimeout(() => { debug.timeScale = 1; }, duration * 1000);
+}
+
+function spawnVisionCone(origin, aimAngleRad, range, arcDeg, duration) {
+    const halfArcRad = (arcDeg / 2) * Math.PI / 180;
+    add([
+        pos(origin),
+        anchor("center"),
+        "visioncone",
+        {
+            life: duration,
+            opacity: 0.8,
+            hitList: new Set(),
+            update() {
+                this.life -= dt();
+                this.opacity = this.life / duration;
+                if (this.life <= 0) { destroy(this); return; }
+
+                // Reveal walls and sentinels inside the cone
+                const all = [...get("wall"), ...get("sentinel")];
+                for (const e of all) {
+                    if (this.hitList.has(e.id)) continue;
+                    const d = e.pos.dist(this.pos);
+                    if (d > range) continue;
+
+                    const toEntity = Math.atan2(e.pos.y - this.pos.y, e.pos.x - this.pos.x);
+                    let diff = toEntity - aimAngleRad;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+
+                    if (Math.abs(diff) < halfArcRad) {
+                        this.hitList.add(e.id);
+                        if (e.reveal) e.reveal();
+                    }
+                }
+            },
+            draw() {
+                // Cone as polygon fan
+                const pts = [vec2(0, 0)];
+                const steps = 10;
+                for (let i = 0; i <= steps; i++) {
+                    const a = aimAngleRad - halfArcRad + (i / steps) * (halfArcRad * 2);
+                    pts.push(vec2(Math.cos(a) * range, Math.sin(a) * range));
+                }
+                drawPolygon({
+                    pts: pts,
+                    color: NEON_BLUE,
+                    opacity: this.opacity * 0.12,
+                    fill: true
+                });
+                drawPolygon({
+                    pts: pts,
+                    fill: false,
+                    outline: { color: NEON_BLUE, width: 2 },
+                    opacity: this.opacity * 0.5
+                });
+            }
+        }
+    ]);
 }
 
 // --- PULSE SYSTEM ---
@@ -213,6 +329,7 @@ scene("game", () => {
         body(), // PHYSICS FIX: Adds physical body for collision resolution
         neonShape(),
         wobblyMovement(),
+        combatVisuals(),
         "player",
         {
             stamina: 100,
@@ -222,6 +339,10 @@ scene("game", () => {
             dashTimer: 0,
             isExhausted: false,
             isDead: false,
+            // Combat
+            combatState: "idle",
+            combatTimer: 0,
+            parrySuccess: false,
         }
     ]);
 
@@ -288,18 +409,44 @@ scene("game", () => {
             {
                 points: points,
                 curPointIndex: 0,
-                state: "patrol", // patrol, chase, search, return
+                state: "patrol", // patrol, chase, lunge_windup, lunge, search, return, stunned
                 speed: 100,
                 lastHeardPos: null,
                 searchTimer: 0,
                 pulseTimer: 0,
                 revealOpacity: 0,
+                // Combat
+                lungeTimer: 0,
+                lungeDir: null,
+                windupTimer: 0,
+                stunTimer: 0,
+                isStunned: false,
 
                 hear(location) {
-                    // AI FIX: Allow updating target even if already chasing (retargeting)
+                    // Can't hear while stunned or mid-lunge
+                    if (this.state === "stunned" || this.state === "lunge" || this.state === "lunge_windup") return;
                     this.state = "chase";
                     this.lastHeardPos = location.clone();
                     this.speed = 220;
+                },
+
+                stun() {
+                    this.state = "stunned";
+                    this.isStunned = true;
+                    this.stunTimer = STUN_DURATION;
+                    this.revealOpacity = 1;
+                    this.speed = 0;
+                    this.lungeDir = null;
+                },
+
+                echoStun() {
+                    // Shorter stun from Echo Strike (0.5s)
+                    this.state = "stunned";
+                    this.isStunned = true;
+                    this.stunTimer = 0.5;
+                    this.revealOpacity = 1;
+                    this.speed = 0;
+                    this.lungeDir = null;
                 },
 
                 reveal() {
@@ -307,18 +454,16 @@ scene("game", () => {
                 },
 
                 draw() {
-                    // Draw Sentinel Triangle
                     if (this.revealOpacity > 0.01) {
                         drawPolygon({
                             pts: [vec2(-20, 20), vec2(20, 20), vec2(0, -30)],
                             fill: false,
-                            outline: { color: NEON_RED, width: 4 },
+                            outline: { color: this.isStunned ? NEON_YELLOW : NEON_RED, width: 4 },
                             opacity: this.revealOpacity
                         });
-                        // Inner glow
                         drawPolygon({
                             pts: [vec2(-16, 16), vec2(16, 16), vec2(0, -24)],
-                            color: NEON_RED,
+                            color: this.isStunned ? NEON_YELLOW : NEON_RED,
                             opacity: this.revealOpacity * 0.2,
                             fill: true
                         });
@@ -327,13 +472,14 @@ scene("game", () => {
 
                 update() {
                     // Update visibility
-                    this.opacity = this.revealOpacity;
-                    this.revealOpacity = Math.max(0, this.revealOpacity - dt() * 0.5);
+                    if (this.state !== "lunge_windup") {
+                        this.opacity = this.revealOpacity;
+                        this.revealOpacity = Math.max(0, this.revealOpacity - dt() * 0.5);
+                    }
 
-                    // Pulse Effect while moving
-                    if (this.state !== "idle") {
+                    // Pulse trail while moving (not when stunned)
+                    if (this.state !== "idle" && this.state !== "stunned") {
                         this.pulseTimer += dt();
-                        // More frequent pulses when chasing
                         const pInterval = this.state === "chase" ? 0.4 : 0.8;
                         if (this.pulseTimer > pInterval) {
                             add([
@@ -354,56 +500,124 @@ scene("game", () => {
                                             fill: false,
                                             outline: { color: NEON_RED, width: 2 },
                                             opacity: this.opacity * 0.5,
-                                            // Expand effect
                                             scale: vec2(1 + (0.5 - this.life) * 2)
                                         });
                                     }
-
                                 }
                             ]);
                             this.pulseTimer = 0;
                         }
                     }
 
-                    // Collision with player
-                    if (player.exists() && this.pos.dist(player.pos) < 40 && !player.isDead) {
+                    // Kill player on contact (only in normal movement states)
+                    if (player.exists() && this.pos.dist(player.pos) < 40 && !player.isDead
+                        && this.state !== "lunge_windup" && this.state !== "lunge" && this.state !== "stunned") {
                         shatterPlayer();
                     }
 
-                    // State Logic
+                    // --- STATE MACHINE ---
+
                     if (this.state === "patrol") {
                         if (this.points.length === 0) {
                             this.points.push(vec2(rand(100, width() - 100), rand(100, height() - 100)));
                         }
-
                         const target = this.points[this.curPointIndex];
                         const dir = target.sub(this.pos).unit();
                         this.move(dir.scale(this.speed));
                         this.angle = this.pos.angle(target) + 90;
-
                         if (this.pos.dist(target) < 10) {
                             this.curPointIndex = (this.curPointIndex + 1) % this.points.length;
                         }
                     }
                     else if (this.state === "chase") {
                         if (this.lastHeardPos) {
+                            // Lunge trigger: close enough to the player to attack
+                            if (player.exists() && !player.isDead && this.pos.dist(player.pos) < 80) {
+                                this.state = "lunge_windup";
+                                this.windupTimer = 0.4;
+                                this.lungeDir = player.pos.sub(this.pos).unit();
+                                // Warning cue: red ripple
+                                spawnPulse(this.pos, 60, 0.3, false, this, NEON_RED);
+                                return;
+                            }
+
                             const dir = this.lastHeardPos.sub(this.pos).unit();
                             this.move(dir.scale(this.speed));
                             this.angle = this.pos.angle(this.lastHeardPos) + 90;
-
                             if (this.pos.dist(this.lastHeardPos) < 20) {
                                 this.state = "search";
                                 this.searchTimer = 2;
                             }
                         }
                     }
+                    else if (this.state === "lunge_windup") {
+                        this.windupTimer -= dt();
+                        // Rapid flicker — the parry cue
+                        this.revealOpacity = (Math.sin(this.windupTimer * 30) > 0) ? 1 : 0.3;
+                        this.opacity = this.revealOpacity;
+
+                        if (this.windupTimer <= 0) {
+                            this.state = "lunge";
+                            this.lungeTimer = 0.2;
+                            // Lock lunge direction to where player IS right now
+                            if (player.exists()) {
+                                this.lungeDir = player.pos.sub(this.pos).unit();
+                            }
+                        }
+                    }
+                    else if (this.state === "lunge") {
+                        this.lungeTimer -= dt();
+                        this.revealOpacity = 1; // Fully visible during lunge
+
+                        // Dash forward (null guard prevents crash if stunned mid-lunge)
+                        if (this.lungeDir) {
+                            this.move(this.lungeDir.scale(400));
+                        }
+
+                        // Contact check during lunge
+                        if (player.exists() && this.pos.dist(player.pos) < 40 && !player.isDead) {
+                            if (player.combatState === "parry") {
+                                // --- PARRIED! ---
+                                player.parrySuccess = true;
+                                this.stun();
+
+                                impactFreeze(IMPACT_FREEZE);
+
+                                // Slow-mo then restore
+                                setTimeout(() => { debug.timeScale = 0.3; }, IMPACT_FREEZE * 1000);
+                                setTimeout(() => { debug.timeScale = 1; }, IMPACT_FREEZE * 1000 + 800);
+
+                                // Perfect Pulse — silent (isEcho=true), white, large
+                                spawnPulse(player.pos, 500, 0.8, true, null, NEON_WHITE);
+
+                                play("sfx_parry");
+                                shake(10);
+                            } else {
+                                // Player didn't parry — death
+                                shatterPlayer();
+                            }
+                        }
+
+                        if (this.lungeTimer <= 0 && this.state === "lunge") {
+                            this.state = "search";
+                            this.searchTimer = 2;
+                            this.speed = 100;
+                        }
+                    }
+                    else if (this.state === "stunned") {
+                        this.stunTimer -= dt();
+                        this.revealOpacity = 1; // Always visible when stunned
+                        // Don't move
+                        if (this.stunTimer <= 0) {
+                            this.isStunned = false;
+                            this.state = "return";
+                            this.speed = 100;
+                        }
+                    }
                     else if (this.state === "search") {
                         this.searchTimer -= dt();
                         if (this.searchTimer <= 0) {
-                            // Ping! Sentinel search pulse — red color, with self-exclusion & player detection
                             spawnPulse(this.pos, 300, 0.5, false, this, NEON_RED);
-
-                            // Return to patrol (Hearing logic logic is now handled in spawnPulse hitting the player and calling hear())
                             this.state = "return";
                         }
                     }
@@ -412,7 +626,6 @@ scene("game", () => {
                         const dir = target.sub(this.pos).unit();
                         this.move(dir.scale(this.speed));
                         this.angle = this.pos.angle(target) + 90;
-
                         if (this.pos.dist(target) < 10) {
                             this.state = "patrol";
                             this.speed = 100;
@@ -462,6 +675,55 @@ scene("game", () => {
         });
     }
 
+    // --- ENEMY SHATTER ---
+
+    function shatterSentinel(sentinel) {
+        impactFreeze(IMPACT_FREEZE);
+        play("sfx_kill");
+
+        const shardPos = sentinel.pos.clone();
+        for (let i = 0; i < 12; i++) {
+            const ang = rand(0, 360);
+            const spd = rand(150, 350);
+            add([
+                pos(shardPos),
+                anchor("center"),
+                rotate(rand(0, 360)),
+                opacity(1),
+                "shard",
+                {
+                    vel: vec2(Math.cos(ang * Math.PI / 180) * spd, Math.sin(ang * Math.PI / 180) * spd),
+                    life: 0.8,
+                    update() {
+                        this.life -= dt();
+                        this.vel.y += 400 * dt(); // Gravity
+                        this.pos = this.pos.add(this.vel.scale(dt()));
+                        this.opacity = this.life / 0.8;
+                        this.angle += 360 * dt();
+                        if (this.life <= 0) destroy(this);
+                    },
+                    draw() {
+                        drawPolygon({
+                            pts: [vec2(-4, 4), vec2(4, 4), vec2(0, -8)],
+                            color: NEON_RED,
+                            opacity: this.opacity,
+                            fill: true
+                        });
+                        drawPolygon({
+                            pts: [vec2(-4, 4), vec2(4, 4), vec2(0, -8)],
+                            fill: false,
+                            outline: { color: NEON_RED, width: 2 },
+                            opacity: this.opacity
+                        });
+                    }
+                }
+            ]);
+        }
+
+        shake(15);
+        destroy(sentinel);
+    }
+
     // --- MAIN LOOP ---
 
     onUpdate(() => {
@@ -475,12 +737,12 @@ scene("game", () => {
 
         const isMoving = input.len() > 0;
         const isSprinting = isKeyDown("shift");
-        const isSneaking = isKeyDown("control");
+        const isSneaking = isKeyDown("z");
         const isDashPressed = isKeyPressed("space");
 
         let currentSpeed = MOVE_SPEED;
-        let pulseInterval = 0.7;
-        let pulseSize = 180;
+        let pulseInterval = 0.5;
+        let pulseSize = 100;
         let canPulse = true;
 
         // --- STAMINA STATE CHECK ---
@@ -554,8 +816,94 @@ scene("game", () => {
             player.stepTimer = pulseInterval;
         }
 
-        // 5. Aim & Camera
+        // --- COMBAT ---
+
+        // Tick combat timer
+        if (player.combatState !== "idle") {
+            player.combatTimer -= dt();
+            if (player.combatTimer <= 0) {
+                player.combatState = "idle";
+                player.combatTimer = 0;
+            }
+        }
+
+        // Get aim direction (used by both attack types)
         const worldMousePos = toWorld(mousePos());
+        const aimDir = worldMousePos.sub(player.pos).unit();
+        const aimAngleRad = Math.atan2(aimDir.y, aimDir.x);
+
+        // Attack (Left Click)
+        if (isMousePressed("left") && player.combatState === "idle"
+            && player.stamina >= ATTACK_COST && !player.isExhausted && !player.isDashing) {
+
+            player.stamina -= ATTACK_COST;
+            player.combatState = "attack";
+            player.combatTimer = 0.15;
+            play("sfx_attack");
+
+            if (isSneaking) {
+                // --- SILENT STING ---
+                // Short range, zero sound, backstab check
+                const range = 50;
+                const sentinels = get("sentinel");
+                for (const s of sentinels) {
+                    const d = s.pos.dist(player.pos);
+                    if (d > range) continue;
+
+                    // Must be aiming at sentinel
+                    const toSentinel = s.pos.sub(player.pos).unit();
+                    const dot = aimDir.x * toSentinel.x + aimDir.y * toSentinel.y;
+                    if (dot < 0.5) continue;
+
+                    // Backstab: is player behind or beside the sentinel?
+                    const sAngleRad = (s.angle - 90) * Math.PI / 180;
+                    const sFacing = vec2(Math.cos(sAngleRad), Math.sin(sAngleRad));
+                    const sToPlayer = player.pos.sub(s.pos).unit();
+                    const facingDot = sFacing.x * sToPlayer.x + sFacing.y * sToPlayer.y;
+
+                    // facingDot < 0.5 means player is to the side or behind
+                    if (facingDot < 0.5 || s.isStunned) {
+                        shatterSentinel(s);
+                        break;
+                    }
+                }
+            } else {
+                // --- ECHO STRIKE ---
+                // Directional vision cone (60°), reveals but doesn't alert
+                spawnVisionCone(player.pos.clone(), aimAngleRad, 120, 60, 0.4);
+
+                // Check for sentinel hits within cone
+                const range = 80;
+                const halfArcRad = 30 * Math.PI / 180;
+                const sentinels = get("sentinel");
+                for (const s of sentinels) {
+                    const d = s.pos.dist(player.pos);
+                    if (d > range) continue;
+
+                    const toS = Math.atan2(s.pos.y - player.pos.y, s.pos.x - player.pos.x);
+                    let diff = toS - aimAngleRad;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+
+                    if (Math.abs(diff) < halfArcRad) {
+                        if (s.echoStun) s.echoStun();
+                    }
+                }
+            }
+        }
+
+        // Parry (Right Click)
+        if (isMousePressed("right") && player.combatState === "idle"
+            && player.stamina >= PARRY_COST && !player.isExhausted && !player.isDashing) {
+
+            player.stamina -= PARRY_COST;
+            player.combatState = "parry";
+            player.combatTimer = PARRY_WINDOW;
+            player.parrySuccess = false;
+            play("sfx_parry_initial");
+        }
+
+        // 5. Aim & Camera (worldMousePos already computed in combat section above)
         player.angle = player.pos.angle(worldMousePos);
 
         const MAX_PEEK = 150;
