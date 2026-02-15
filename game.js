@@ -462,6 +462,36 @@ scene("game", () => {
         ]);
     }
 
+    function spawnGhost(position, angle) {
+        add([
+            pos(position),
+            rotate(angle),
+            anchor("center"),
+            opacity(0.4),
+            lifespan(0.5, { fade: 0.5 }),
+            z(-5), // Behind player
+            "ghost",
+            {
+                draw() {
+                    // Ghostly outline
+                    drawRect({
+                        width: 35, height: 35,
+                        anchor: "center",
+                        fill: false,
+                        outline: { color: NEON_BLUE, width: 2 },
+                        opacity: this.opacity
+                    });
+                    // Direction pointer
+                    drawLine({
+                        p1: vec2(0, 0), p2: vec2(-17, 0),
+                        width: 2, color: NEON_BLUE,
+                        opacity: this.opacity
+                    });
+                }
+            }
+        ]);
+    }
+
     // --- LEVEL GENERATION ---
 
     let spawnPos = vec2(center());
@@ -868,6 +898,7 @@ scene("game", () => {
             player.dashTimer = DASH_TIME;
             player.stamina -= 35;
             spawnPulse(player.pos, 550, 0.6);
+            spawnGhost(player.pos, player.angle);
             shake(3);
             currentSpeed = DASH_SPEED;
             play("sfx_dash");
@@ -907,6 +938,7 @@ scene("game", () => {
                 player.stepTimer += dt();
                 if (player.stepTimer >= pulseInterval) {
                     spawnPulse(player.pos, pulseSize, 0.8);
+                    spawnGhost(player.pos, player.angle);
 
                     // Footstep sound syncs with pulse (step)
                     if (isSprinting) {
