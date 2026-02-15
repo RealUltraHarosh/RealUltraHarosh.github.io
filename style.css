@@ -21,9 +21,10 @@ canvas {
     display: block;
 }
 
-/* === MAIN MENU === */
+/* === SHARED OVERLAY === */
 
-#main-menu {
+#main-menu,
+#end-screen {
     position: fixed;
     inset: 0;
     z-index: 1000;
@@ -37,6 +38,17 @@ canvas {
 #main-menu.fade-out {
     opacity: 0;
     pointer-events: none;
+}
+
+/* End screen hidden by default, fades in */
+#end-screen {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#end-screen.visible {
+    opacity: 1;
+    pointer-events: all;
 }
 
 /* Animated Grid Background */
@@ -79,6 +91,10 @@ canvas {
     animation: title-glow 3s ease-in-out infinite alternate;
 }
 
+.end-title {
+    font-size: clamp(3rem, 9vw, 7rem);
+}
+
 @keyframes title-glow {
     0%   { text-shadow: 0 0 10px rgba(0,255,255,0.5), 0 0 30px rgba(0,255,255,0.3), 0 0 60px rgba(0,255,255,0.15); }
     100% { text-shadow: 0 0 15px rgba(0,255,255,0.8), 0 0 40px rgba(0,255,255,0.5), 0 0 80px rgba(0,255,255,0.25); }
@@ -93,8 +109,15 @@ canvas {
     text-transform: uppercase;
 }
 
-/* Play Button */
-#play-btn {
+.end-sub {
+    font-size: 1.1rem;
+    letter-spacing: 0.25em;
+    color: rgba(0, 255, 255, 0.7);
+}
+
+/* Buttons */
+#play-btn,
+#replay-btn {
     margin-top: 30px;
     padding: 16px 60px;
     font-family: 'Orbitron', sans-serif;
@@ -110,7 +133,8 @@ canvas {
     transition: all 0.3s ease;
 }
 
-#play-btn::before {
+#play-btn::before,
+#replay-btn::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -120,7 +144,8 @@ canvas {
     transition: transform 0.3s ease;
 }
 
-#play-btn:hover {
+#play-btn:hover,
+#replay-btn:hover {
     border-color: rgba(0, 255, 255, 1);
     box-shadow:
         0 0 15px rgba(0, 255, 255, 0.3),
@@ -128,11 +153,13 @@ canvas {
     text-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
 }
 
-#play-btn:hover::before {
+#play-btn:hover::before,
+#replay-btn:hover::before {
     transform: scaleX(1);
 }
 
-#play-btn:active {
+#play-btn:active,
+#replay-btn:active {
     transform: scale(0.97);
 }
 

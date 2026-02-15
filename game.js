@@ -25,6 +25,26 @@ const PARRY_WINDOW = 0.2;
 const STUN_DURATION = 2.0;
 const IMPACT_FREEZE = 0.05;
 
+// Level
+const TILE = 80;
+const NEON_GREEN = rgb(0, 255, 100);
+const LEVEL_MAP = [
+    "WWWWWWWWWWWWWWWWWWWW",
+    "W....WW............W",
+    "W.P..WW............W",
+    "W....WW............W",
+    "W......W...WW......W",
+    "WWWW...W...WW......W",
+    "W......W...........W",
+    "W......WWWW..WWWWWWW",
+    "W..................W",
+    "W.......WW.........W",
+    "WWWWWW..WW...WW....W",
+    "W............WW..E.W",
+    "W............WW....W",
+    "WWWWWWWWWWWWWWWWWWWW",
+];
+
 // Sound Placeholders — uncomment and set your file paths
 loadSound("sfx_attack", "sounds/attack.mp3");
 loadSound("sfx_parry", "sounds/parry.mp3");
@@ -386,10 +406,74 @@ scene("game", () => {
         ]);
     }
 
-    // Spawn some test walls
-    for (let i = 0; i < 12; i++) {
-        addWall(rand(100, width() - 100), rand(100, height() - 100));
+    // --- EXIT ZONE ---
+
+    function addExit(x, y) {
+        return add([
+            pos(x, y),
+            anchor("center"),
+            area({ shape: new Rect(vec2(-30, -30), 60, 60) }),
+            opacity(0),
+            "wall",
+            "exit",
+            {
+                revOpacity: 0,
+                glowTime: 0,
+                won: false,
+                reveal() { this.revOpacity = 1; },
+                update() {
+                    this.revOpacity = Math.max(0, this.revOpacity - dt() * 0.8);
+                    this.glowTime += dt();
+                    if (player.exists() && !player.isDead && this.pos.dist(player.pos) < 40 && !this.won) {
+                        this.won = true;
+                        showEndScreen();
+                    }
+                },
+                draw() {
+                    // Always-visible faint glow
+                    drawCircle({
+                        radius: 10,
+                        color: NEON_GREEN,
+                        opacity: 0.25 + Math.sin(this.glowTime * 3) * 0.12,
+                    });
+                    if (this.revOpacity > 0.01) {
+                        drawRect({
+                            width: 60, height: 60,
+                            anchor: "center",
+                            fill: false,
+                            outline: { color: NEON_GREEN, width: 3 },
+                            opacity: this.revOpacity
+                        });
+                        drawRect({
+                            width: 50, height: 50,
+                            anchor: "center",
+                            color: NEON_GREEN,
+                            opacity: this.revOpacity * 0.1,
+                            fill: true
+                        });
+                    }
+                }
+            }
+        ]);
     }
+
+    // --- LEVEL GENERATION ---
+
+    let spawnPos = vec2(center());
+
+    for (let row = 0; row < LEVEL_MAP.length; row++) {
+        for (let col = 0; col < LEVEL_MAP[row].length; col++) {
+            const x = col * TILE + TILE / 2;
+            const y = row * TILE + TILE / 2;
+            const ch = LEVEL_MAP[row][col];
+            if (ch === "W") addWall(x, y);
+            else if (ch === "P") spawnPos = vec2(x, y);
+            else if (ch === "E") addExit(x, y);
+        }
+    }
+
+    player.pos = spawnPos;
+    camPos(spawnPos);
 
     // --- SENTINEL ENEMY ---
 
@@ -636,12 +720,20 @@ scene("game", () => {
         ]);
     }
 
-    // Test Sentinel
+    // Sentinels with designed patrol routes
+    // Sentinel 1: Patrols upper-right area
     addSentinel([
-        vec2(200, 200),
-        vec2(width() - 200, 200),
-        vec2(width() - 200, height() - 200),
-        vec2(200, height() - 200)
+        vec2(12 * TILE, 2 * TILE),
+        vec2(17 * TILE, 2 * TILE),
+        vec2(17 * TILE, 5 * TILE),
+        vec2(12 * TILE, 5 * TILE),
+    ]);
+    // Sentinel 2: Patrols lower-left area
+    addSentinel([
+        vec2(3 * TILE, 9 * TILE),
+        vec2(3 * TILE, 12 * TILE),
+        vec2(8 * TILE, 12 * TILE),
+        vec2(8 * TILE, 9 * TILE),
     ]);
 
     // --- DEATH SEQUENCE ---
